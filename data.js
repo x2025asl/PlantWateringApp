@@ -1,26 +1,13 @@
-// ============================================================
-// data.js — ALL the fake data for your prototype lives here.
-//
-// There is no database. Everything below is made up, and that is
-// on purpose: never put real people's names, emails, phone numbers
-// or addresses in this file.
-//
-// To change what appears on the Explore page, edit LISTINGS.
-// Each item is one card. Keep the same fields (id, name, category,
-// description) or ask Copilot to add new ones everywhere they're needed.
-// ============================================================
+// Fictional starter plants make the watering priorities visible in the prototype.
+// Plants added or changed by the user are saved in this browser's localStorage.
+function daysAgo(days) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+}
 
-const STARTUP = {
-  name: "YourStartup",
-  tagline: "One sentence that says what your startup does.",
-  pitch: "Who is your customer, what problem do they have, and why is your solution better than what they use today?"
-};
-
-const LISTINGS = [
-  { id: 1, name: "Sample listing A", category: "Category 1", description: "A short description of this item." },
-  { id: 2, name: "Sample listing B", category: "Category 2", description: "A short description of this item." },
-  { id: 3, name: "Sample listing C", category: "Category 1", description: "A short description of this item." },
-  { id: 4, name: "Sample listing D", category: "Category 3", description: "A short description of this item." },
-  { id: 5, name: "Sample listing E", category: "Category 2", description: "A short description of this item." },
-  { id: 6, name: "Sample listing F", category: "Category 3", description: "A short description of this item." }
+const STARTER_PLANTS = [
+  { id: "starter-pothos", name: "Golden pothos", interval: 7, lastWatered: daysAgo(8) },
+  { id: "starter-peace-lily", name: "Peace lily", interval: 5, lastWatered: daysAgo(4) },
+  { id: "starter-snake-plant", name: "Snake plant", interval: 21, lastWatered: daysAgo(13) }
 ];

@@ -1,18 +1,6 @@
-// ============================================================
-// app.js — what your site DOES.
-// Plain JavaScript, no libraries, no installs.
-// It uses STARTUP and LISTINGS from data.js (loaded first).
-// ============================================================
-
 (function () {
   "use strict";
 
-  // ----------------------------------------------------------
-  // 1. Saving things in the browser (localStorage).
-  //    This only remembers things on THIS browser on THIS device.
-  //    Your teammates and your customers will NOT see it.
-  //    A real product would need a server and a database for that.
-  // ----------------------------------------------------------
   const storage = {
     get: function (key, fallback) {
       try {
@@ -31,111 +19,144 @@
     }
   };
 
-  let savedIds = storage.get("savedIds", []);
+  let plants = storage.get("verdantPlants", STARTER_PLANTS);
+  const plantList = document.getElementById("plant-list");
+  const emptyState = document.getElementById("empty-state");
+  const dialog = document.getElementById("plant-dialog");
+  const form = document.getElementById("plant-form");
 
-  // ----------------------------------------------------------
-  // 2. Put the startup's name and pitch on the page.
-  // ----------------------------------------------------------
-  document.title = STARTUP.name;
-  document.getElementById("brand-name").textContent = STARTUP.name;
-  document.getElementById("tagline").textContent = STARTUP.tagline;
-  document.getElementById("pitch").textContent = STARTUP.pitch;
-
-  // ----------------------------------------------------------
-  // 3. Views: show one section at a time, based on the #link in the address bar.
-  // ----------------------------------------------------------
-  function showView() {
-    const requested = (window.location.hash || "#home").slice(1);
-    const views = document.querySelectorAll("[data-view]");
-    const exists = Array.prototype.some.call(views, function (view) {
-      return view.id === requested;
-    });
-    const current = exists ? requested : "home";
-
-    views.forEach(function (view) {
-      view.hidden = view.id !== current;
-    });
-
-    document.querySelectorAll("nav a").forEach(function (link) {
-      if (link.getAttribute("href") === "#" + current) {
-        link.setAttribute("aria-current", "page");
-      } else {
-        link.removeAttribute("aria-current");
-      }
-    });
-
-    window.scrollTo(0, 0);
+  function localDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
   }
 
-  window.addEventListener("hashchange", showView);
-
-  // ----------------------------------------------------------
-  // 4. Explore page: build one card per listing.
-  //    We use textContent (not innerHTML) so text is always shown
-  //    as text — a basic security habit.
-  // ----------------------------------------------------------
-  const grid = document.getElementById("listing-grid");
-  const searchBox = document.getElementById("search-box");
-  const emptyMessage = document.getElementById("empty-message");
-  const savedCount = document.getElementById("saved-count");
-
-  function makeCard(item) {
-    const card = document.createElement("article");
-    card.className = "card";
-
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = item.category;
-
-    const title = document.createElement("h2");
-    title.textContent = item.name;
-
-    const text = document.createElement("p");
-    text.textContent = item.description;
-
-    const isSaved = savedIds.indexOf(item.id) !== -1;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "button secondary";
-    button.textContent = isSaved ? "Saved ✓" : "Save";
-    button.setAttribute("aria-pressed", isSaved ? "true" : "false");
-    button.addEventListener("click", function () {
-      toggleSaved(item.id);
-    });
-
-    card.append(tag, title, text, button);
-    return card;
+  function daysBetween(from, to) {
+    const fromParts = from.split("-").map(Number);
+    const toParts = to.split("-").map(Number);
+    const fromUtc = Date.UTC(fromParts[0], fromParts[1] - 1, fromParts[2]);
+    const toUtc = Date.UTC(toParts[0], toParts[1] - 1, toParts[2]);
+    return Math.floor((toUtc - fromUtc) / 86400000);
   }
 
-  function toggleSaved(id) {
-    if (savedIds.indexOf(id) === -1) {
-      savedIds.push(id);
-    } else {
-      savedIds = savedIds.filter(function (savedId) { return savedId !== id; });
+  function urgencyFor(plant, today) {
+    const daysSinceWatering = daysBetween(plant.lastWatered, today);
+    const daysUntilWatering = plant.interval - daysSinceWatering;
+    if (daysUntilWatering < 0) {
+      return { daysUntil: daysUntilWatering, label: "Overdue by " + Math.abs(daysUntilWatering) + " " + (Math.abs(daysUntilWatering) === 1 ? "day" : "days"), status: "overdue" };
     }
-    storage.set("savedIds", savedIds);
-    renderListings();
+    if (daysUntilWatering === 0) {
+      return { daysUntil: 0, label: "Water today", status: "today" };
+    }
+    if (daysUntilWatering === 1) {
+      return { daysUntil: 1, label: "Water tomorrow", status: "soon" };
+    }
+    return { daysUntil: daysUntilWatering, label: "In " + daysUntilWatering + " days", status: "upcoming" };
   }
 
-  function renderListings() {
-    const query = searchBox.value.trim().toLowerCase();
-    const matches = LISTINGS.filter(function (item) {
-      const text = (item.name + " " + item.category + " " + item.description).toLowerCase();
-      return text.indexOf(query) !== -1;
+  function savePlants() {
+    storage.set("verdantPlants", plants);
+  }
+
+  function makePlantRow(plant, urgency) {
+    const row = document.createElement("article");
+    row.className = "plant-row";
+
+    const marker = document.createElement("span");
+    marker.className = "plant-marker " + urgency.status;
+    marker.setAttribute("aria-hidden", "true");
+    marker.textContent = plant.name.trim().charAt(0).toUpperCase();
+
+    const details = document.createElement("div");
+    details.className = "plant-details";
+    const name = document.createElement("h3");
+    name.textContent = plant.name;
+    const schedule = document.createElement("p");
+    schedule.textContent = "Every " + plant.interval + " days · Last watered " + new Date(plant.lastWatered + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    details.append(name, schedule);
+
+    const status = document.createElement("span");
+    status.className = "urgency " + urgency.status;
+    status.textContent = urgency.label;
+
+    const wateredButton = document.createElement("button");
+    wateredButton.type = "button";
+    wateredButton.className = "button water-button";
+    wateredButton.textContent = "✓ Watered";
+    wateredButton.setAttribute("aria-label", "Mark " + plant.name + " as watered today");
+    wateredButton.addEventListener("click", function () {
+      plant.lastWatered = localDateString(new Date());
+      savePlants();
+      renderPlants();
     });
 
-    grid.replaceChildren.apply(grid, matches.map(makeCard));
-    emptyMessage.hidden = matches.length > 0;
-    savedCount.textContent = savedIds.length === 0
-      ? "Tap Save on anything you like."
-      : "You've saved " + savedIds.length + " item(s) on this device.";
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "icon-button remove-button";
+    removeButton.textContent = "×";
+    removeButton.setAttribute("aria-label", "Remove " + plant.name);
+    removeButton.title = "Remove plant";
+    removeButton.addEventListener("click", function () {
+      plants = plants.filter(function (savedPlant) { return savedPlant.id !== plant.id; });
+      savePlants();
+      renderPlants();
+    });
+
+    row.append(marker, details, status, wateredButton, removeButton);
+    return row;
   }
 
-  searchBox.addEventListener("input", renderListings);
+  function renderPlants() {
+    const today = localDateString(new Date());
+    const rankedPlants = plants.map(function (plant) {
+      return { plant: plant, urgency: urgencyFor(plant, today) };
+    }).sort(function (first, second) {
+      return first.urgency.daysUntil - second.urgency.daysUntil || first.plant.name.localeCompare(second.plant.name);
+    });
+    const dueCount = rankedPlants.filter(function (item) { return item.urgency.daysUntil <= 0; }).length;
 
-  // ----------------------------------------------------------
-  // 5. Start up.
-  // ----------------------------------------------------------
-  renderListings();
-  showView();
+    document.getElementById("today-label").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+    document.getElementById("plant-count").textContent = plants.length;
+    document.getElementById("due-summary").textContent = plants.length === 0
+      ? "No plants to water yet"
+      : dueCount === 0
+        ? "All caught up. Nice work!"
+        : dueCount + (dueCount === 1 ? " plant needs" : " plants need") + " water";
+    plantList.replaceChildren.apply(plantList, rankedPlants.map(function (item) {
+      return makePlantRow(item.plant, item.urgency);
+    }));
+    emptyState.hidden = plants.length > 0;
+    plantList.hidden = plants.length === 0;
+  }
+
+  function openForm() {
+    form.reset();
+    document.getElementById("last-watered").value = localDateString(new Date());
+    dialog.showModal();
+    document.getElementById("plant-name").focus();
+  }
+
+  document.getElementById("open-form").addEventListener("click", openForm);
+  document.getElementById("empty-add").addEventListener("click", openForm);
+  document.getElementById("close-form").addEventListener("click", function () { dialog.close(); });
+  document.getElementById("cancel-form").addEventListener("click", function () { dialog.close(); });
+  dialog.addEventListener("click", function (event) {
+    if (event.target === dialog) dialog.close();
+  });
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const formData = new FormData(form);
+    plants.push({
+      id: "plant-" + Date.now(),
+      name: String(formData.get("name")).trim(),
+      interval: Number(formData.get("interval")),
+      lastWatered: String(formData.get("lastWatered"))
+    });
+    savePlants();
+    renderPlants();
+    dialog.close();
+  });
+
+  renderPlants();
 })();
